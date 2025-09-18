@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+    <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'self' *.sharepoint.com;">
+    <title>Attorney-Secretary Assignment Finder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        
+        .search-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .search-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #0078d4;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary {
+            background: #0078d4;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #106ebe;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .results {
+            margin-top: 30px;
+        }
+        
+        .result-group {
+            margin-bottom: 40px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .result-header {
+            background: #0078d4;
+            color: white;
+            padding: 15px 20px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .email-link {
+            color: #0078d4;
+            text-decoration: none;
+        }
+        
+        .email-link:hover {
+            text-decoration: underline;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            table {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Attorney-Secretary Assignment Finder</h1>
+        
+        <div class="search-section">
+            <div class="search-group">
+                <label for="nameSearch">Search by Attorney or Secretary Name:</label>
+                <input type="text" id="nameSearch" placeholder="Enter name of attorney or secretary">
+            </div>
+            
+            <div class="search-group">
+                <label for="officeSearch">Find by Office:</label>
+                <select id="officeSearch">
+                    <option value="">Select Office</option>
+                    <option value="Los Angeles">Los Angeles</option>
+                    <option value="San Francisco">San Francisco</option>
+                    <option value="Fresno">Fresno</option>
+                    <option value="San Diego">San Diego</option>
+                    <option value="Sacramento">Sacramento</option>
+                    <option value="Firm">Entire Firm</option>
+                </select>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-primary" onclick="performSearch()">Find</button>
+                <button class="btn-secondary" onclick="clearSearch()">Clear</button>
+            </div>
+        </div>
+        
+        <div id="results" class="results"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script>
+        // SharePoint Lists Data
+        let secretariesData = [];
+        let attorneysData = [];
+        
+        // Get SharePoint site URL dynamically
+        function getSiteUrl() {
+            // Try to get from various sources
+            if (typeof _spPageContextInfo !== 'undefined') {
+                return _spPageContextInfo.webAbsoluteUrl;
+            }
+            
+            // If in iframe, construct from current location
+            const currentUrl = window.location.href;
+            const match = currentUrl.match(/(https:\/\/[^\/]+\/sites\/[^\/]+)/);
+            if (match) {
+                return match[1];
+            }
+            
+            // Fallback - you'll need to replace this with your actual site URL
+            return window.location.origin + '/sites/dept-legalsupport';
+        }
+        
+        // Load data from SharePoint Lists
+        async function loadSharePointData() {
+            try {
+                const siteUrl = getSiteUrl();
+                console.log('Using site URL:', siteUrl);
+                
+                // Load Secretaries
+                const secretariesResponse = await fetch(`${siteUrl}/_api/web/lists/getbytitle('Secretaries')/items`, {
+                    headers: {
+                        'Accept': 'application/json;odata=verbose',
+                        'Content-Type': 'application/json;odata=verbose'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (secretariesResponse.ok) {
+                    const secretariesResult = await secretariesResponse.json();
+                    secretariesData = secretariesResult.d.results.map(item => ({
+                        Name: item.Title,
+                        Office: item.Office,
+                        Email: item.Email,
+                        Code: item.SecretaryCode
+                    }));
+                    console.log('Loaded secretaries:', secretariesData.length);
+                } else {
+                    console.warn('Failed to load secretaries, using sample data');
+                    throw new Error('Failed to load secretaries');
+                }
+                
+                // Load Attorneys
+                const attorneysResponse = await fetch(`${siteUrl}/_api/web/lists/getbytitle('Attorneys')/items`, {
+                    headers: {
+                        'Accept': 'application/json;odata=verbose',
+                        'Content-Type': 'application/json;odata=verbose'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (attorneysResponse.ok) {
+                    const attorneysResult = await attorneysResponse.json();
+                    attorneysData = attorneysResult.d.results.map(item => ({
+                        Name: item.Title,
+                        Title: item.JobTitle,
+                        Office: item.Office,
+                        Ext: item.Extension,
+                        Mobile: item.Mobile,
+                        Email: item.Email,
+                        SecretaryCode: item.SecretaryCode
+                    }));
+                    console.log('Loaded attorneys:', attorneysData.length);
+                } else {
+                    console.warn('Failed to load attorneys, using sample data');
+                    throw new Error('Failed to load attorneys');
+                }
+                
+                console.log('✅ Data loaded from SharePoint Lists successfully!');
+                
+            } catch (error) {
+                console.error('❌ Error loading SharePoint data:', error);
+                console.log('🔄 Loading sample data for testing...');
+                loadSampleData();
+            }
+        }
+        
+        // Sample data for testing when SharePoint lists aren't available
+        function loadSampleData() {
+            secretariesData = [
+                { Name: "Bob Sellers", Office: "Los Angeles", Email: "jsellers@law.com", Code: "BS-LA" },
+                { Name: "Lucille Cokeface", Office: "San Francisco", Email: "lcoke@law.com", Code: "LC-SF" },
+                { Name: "Maria Rodriguez", Office: "San Diego", Email: "mrodriguez@law.com", Code: "MR-SD" },
+                { Name: "David Chen", Office: "Sacramento", Email: "dchen@law.com", Code: "DC-SA" },
+                { Name: "Susan Johnson", Office: "Fresno", Email: "sjohnson@law.com", Code: "SJ-FR" }
+            ];
+            
+            attorneysData = [
+                { Name: "Jim Smith", Title: "Partner", Office: "Los Angeles", Ext: "2011", Mobile: "310.876.5432", Email: "jsmith@law.com", SecretaryCode: "BS-LA" },
+                { Name: "Jane Doe", Title: "Managing Partner", Office: "Los Angeles", Ext: "2012", Mobile: "310.765.3452", Email: "jdoe@law.com", SecretaryCode: "BS-LA" },
+                { Name: "Doreen Eyeball", Title: "Senior Counsel", Office: "San Francisco", Ext: "3021", Mobile: "", Email: "deyeball@law.com", SecretaryCode: "LC-SF" },
+                { Name: "Michael Wilson", Title: "Associate", Office: "San Diego", Ext: "4001", Mobile: "619.555.0123", Email: "mwilson@law.com", SecretaryCode: "MR-SD" },
+                { Name: "Sarah Thompson", Title: "Partner", Office: "Sacramento", Ext: "5001", Mobile: "916.555.0456", Email: "sthompson@law.com", SecretaryCode: "DC-SA" },
+                { Name: "Robert Garcia", Title: "Senior Associate", Office: "Fresno", Ext: "6001", Mobile: "559.555.0789", Email: "rgarcia@law.com", SecretaryCode: "SJ-FR" }
+            ];
+            
+            console.log('✅ Sample data loaded for testing');
+        }
+        
+        function performSearch() {
+            const nameQuery = document.getElementById('nameSearch').value.toLowerCase().trim();
+            const officeQuery = document.getElementById('officeSearch').value;
+            const resultsDiv = document.getElementById('results');
+            
+            if (!nameQuery && !officeQuery) {
+                resultsDiv.innerHTML = '<div class="no-results">Please enter a search term or select an office.</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+            
+            setTimeout(() => {
+                let results = [];
+                
+                if (nameQuery) {
+                    // Search by name
+                    const matchingSecretaries = secretariesData.filter(sec => 
+                        sec.Name.toLowerCase().includes(nameQuery)
+                    );
+                    
+                    const matchingAttorneys = attorneysData.filter(att => 
+                        att.Name.toLowerCase().includes(nameQuery)
+                    );
+                    
+                    // For each matching secretary, find their attorneys
+                    matchingSecretaries.forEach(secretary => {
+                        const assignedAttorneys = attorneysData.filter(att => att.SecretaryCode === secretary.Code);
+                        if (assignedAttorneys.length > 0) {
+                            results.push({
+                                secretary: secretary,
+                                attorneys: assignedAttorneys
+                            });
+                        }
+                    });
+                    
+                    // For each matching attorney, find their secretary
+                    matchingAttorneys.forEach(attorney => {
+                        const secretary = secretariesData.find(sec => sec.Code === attorney.SecretaryCode);
+                        const existingResult = results.find(r => r.secretary.Code === secretary.Code);
+                        
+                        if (!existingResult && secretary) {
+                            const assignedAttorneys = attorneysData.filter(att => att.SecretaryCode === secretary.Code);
+                            results.push({
+                                secretary: secretary,
+                                attorneys: assignedAttorneys
+                            });
+                        }
+                    });
+                } else if (officeQuery) {
+                    // Search by office
+                    let secretariesToShow;
+                    
+                    if (officeQuery === 'Firm') {
+                        secretariesToShow = secretariesData;
+                    } else {
+                        secretariesToShow = secretariesData.filter(sec => sec.Office === officeQuery);
+                    }
+                    
+                    secretariesToShow.forEach(secretary => {
+                        const assignedAttorneys = attorneysData.filter(att => att.SecretaryCode === secretary.Code);
+                        results.push({
+                            secretary: secretary,
+                            attorneys: assignedAttorneys
+                        });
+                    });
+                }
+                
+                displayResults(results);
+            }, 300);
+        }
+        
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div class="no-results">No results found.</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            results.forEach(result => {
+                html += `
+                    <div class="result-group">
+                        <div class="result-header">
+                            ${result.secretary.Name} (${result.secretary.Office}) - ${result.secretary.Email}
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Title</th>
+                                    <th>Office</th>
+                                    <th>Ext</th>
+                                    <th>Mobile</th>
+                                    <th>Email</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                if (result.attorneys.length === 0) {
+                    html += '<tr><td colspan="6" style="text-align: center; color: #666; font-style: italic;">No attorneys assigned</td></tr>';
+                } else {
+                    result.attorneys.forEach(attorney => {
+                        html += `
+                            <tr>
+                                <td>${attorney.Name}</td>
+                                <td>${attorney.Title}</td>
+                                <td>${attorney.Office}</td>
+                                <td>${attorney.Ext}</td>
+                                <td>${attorney.Mobile}</td>
+                                <td><a href="mailto:${attorney.Email}" class="email-link">${attorney.Email}</a></td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        function clearSearch() {
+            document.getElementById('nameSearch').value = '';
+            document.getElementById('officeSearch').value = '';
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Allow search on Enter key
+        document.getElementById('nameSearch').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        // Initialize - Load SharePoint data
+        loadSharePointData();
+    </script>
+</body>
+</html>
